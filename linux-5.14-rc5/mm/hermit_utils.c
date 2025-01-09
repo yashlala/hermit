@@ -179,13 +179,20 @@ static inline void hmt_update_low_watermark(struct mem_cgroup *memcg,
 	}
 }
 
+// Resets a locked `hmt_swap_ctrl` without dropping the lock.
+// We assume `offsetof(hmt_swap_ctrl, lock) = 0`.
+static void hmt_clear_locked_swap_ctrl(struct hmt_swap_ctrl *sc)
+{
+	memset(sc + sizeof(sc->lock), 0, sizeof(*sc) - sizeof(sc->lock));
+}
+
 // must hold sc->lock
 inline void hmt_update_swap_ctrl(struct mem_cgroup *memcg,
 				 struct hmt_swap_ctrl *sc)
 {
 	const int UPD_PERIOD = 1000; // update swap-in tput per UPD_PERIOD us
 	if (sc->swin_ts[0] == 0) {
-		memset(sc, 0, sizeof(struct hmt_swap_ctrl));
+		hmt_clear_locked_swap_ctrl(sc);
 		sc->swin_ts[0] = get_cycles_light();
 		sc->nr_pg_charged[0] = atomic64_read(&memcg->total_pg_charge);
 		return;
