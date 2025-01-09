@@ -10,7 +10,7 @@
 #include <linux/atomic.h>
 
 /* [Hermit] for now support up to 32 sthreads */
-#define HMT_MAX_NR_STHDS 32
+#define HMT_MAX_NR_STHDS 64
 
 struct hmt_work_struct {
 	struct work_struct work;
