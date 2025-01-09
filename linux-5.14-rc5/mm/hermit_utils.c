@@ -10,11 +10,11 @@
 void hmt_async_reclaim(struct mm_struct *mm, struct mem_cgroup *memcg)
 {
 	struct hmt_swap_ctrl *hmt_sc = &memcg->hmt_sc;
+	unsigned long flags;
 	int next_sthd_cnt;
 	int i;
 	// BUG_ON(mm != current->mm);
-	if (!mm || mem_cgroup_is_root(memcg) ||
-	    !spin_trylock_irq(&memcg->hmt_sc.lock))
+	if (!mm || mem_cgroup_is_root(memcg) || !spin_trylock_irqsave(&memcg->hmt_sc.lock, flags))
 		return;
 
 	if (!hmt_sc->mm)
@@ -34,7 +34,7 @@ void hmt_async_reclaim(struct mm_struct *mm, struct mem_cgroup *memcg)
 	hmt_update_swap_ctrl(memcg, hmt_sc);
 	next_sthd_cnt = hmt_get_sthd_cnt(memcg, hmt_sc);
 	atomic_set(&hmt_sc->sthd_cnt, next_sthd_cnt);
-	spin_unlock_irq(&hmt_sc->lock);
+	spin_unlock_irqrestore(&hmt_sc->lock, flags);
 	for (i = 0; i < next_sthd_cnt; i++)
 		schedule_work_on(hmt_sthd_cores[i], &memcg->sthds[i].work);
 }
@@ -311,7 +311,7 @@ void hermit_init_memcg(struct mem_cgroup *memcg)
 		return;
 
 	memset(&memcg->hmt_sc, 0, sizeof(struct hmt_swap_ctrl));
-	memcg->hmt_sc.lock = __SPIN_LOCK_UNLOCKED(memcg->hmt_sc.lock);
+	spin_lock_init(&memcg->hmt_sc.lock);
 	for (i = 0; i < HMT_MAX_NR_STHDS; i++) {
 		INIT_WORK(&memcg->sthds[i].work, hermit_high_work_func);
 		memcg->sthds[i].id = i;
