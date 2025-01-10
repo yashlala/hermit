@@ -285,7 +285,8 @@ static void hermit_high_work_func(struct work_struct *work)
 	struct hmt_swap_ctrl *hmt_sc = &memcg->hmt_sc;
 	struct mm_struct *mm = hmt_sc->mm;
 	struct task_struct *cthd = NULL;
-
+	bool retry = false;
+retry:
 	if (READ_ONCE(hmt_sc->stop))
 		return;
 	if (!mm) {
@@ -303,12 +304,14 @@ static void hermit_high_work_func(struct work_struct *work)
 		hermit_reclaim_high(cthd, hmt_sc, /* master = */ id == 0,
 				    MEMCG_CHARGE_BATCH, GFP_KERNEL);
 	}
-	if (id < hmt_get_sthd_cnt(memcg, hmt_sc)) {
-		schedule_work_on(hmt_sthd_cores[id], &memcg->sthds[id].work);
-	}
+	if (id < hmt_get_sthd_cnt(memcg, hmt_sc))
+		retry = true; 
 	css_put(&memcg->css);
 	atomic_dec(&hmt_sc->active_sthd_cnt);
 	mmdrop(mm);
+
+	if (retry)
+		 goto retry;
 }
 
 void hermit_init_memcg(struct mem_cgroup *memcg)
